@@ -46,6 +46,11 @@ def get_basecall_wd(fc):
     if fc in fcs_with_fast5:
         return str(pathlib2.Path(read_dir, fc))
 
+def get_fastq_files(wildcards):
+    glob_path = 'output/02_basecalled/{}/'.format(wildcards.fc)
+    fq_list = glob_wildcards(os.path.join(glob_path, '{fq}.fastq')).fq
+    return(expand(os.path.join(glob_path, '{fq}.fastq'),
+                  fq=fq_list))
 
 def get_untar_input(wildcards):
     my_tarfile = [x for x in fcs_with_tar[wildcards.fc]
@@ -86,6 +91,7 @@ fc_list = [
 pigz_container = 'shub://TomHarrop/singularity-containers:pigz_2.4.0'
 guppy_container = 'shub://TomHarrop/singularity-containers:guppy_2.3.7'
 minionqc_container = 'shub://TomHarrop/singularity-containers:minionqc_1.4.1'
+bbduk_container = 'shub://TomHarrop/singularity-containers:bbmap_38.00'
 
 ########
 # MAIN #
@@ -117,8 +123,54 @@ fcs_with_tar = {k: v for k, v in flowcell_to_tar.items() if len(v) > 0}
 rule target:
     input:
         expand('output/02_basecalled/{fc}/sequencing_summary.txt',
-               fc=list(fcs_with_tar.keys()) + list(fcs_with_fast5.keys())),
-        'output/03_minionqc/combinedQC/summary.yaml'
+               fc=fc_list),
+        'output/03_minionqc/combinedQC/summary.yaml',
+        'output/04_filtered/all_passed_reads.fastq'
+
+
+# combine and filter sequencing_summary files
+rule join_passed_reads:
+    input:
+        expand('output/04_filtered/{fc}/kept_reads.fastq',
+               fc=fc_list)
+    output:
+        'output/04_filtered/all_passed_reads.fastq'
+    shell:
+        'cat {input} > {output}'
+
+rule filter_by_name:
+    input:
+        'output/02_basecalled/{fc}/sequencing_summary.txt',
+        names = 'output/04_filtered/{fc}/reads_to_keep.txt'
+    output:
+        temp('output/04_filtered/{fc}/kept_reads.fastq')
+    params:
+        fq_list = lambda wildcards: get_fastq_files(wildcards)
+    log:
+        'output/logs/filter_by_name_{fc}.log'
+    singularity:
+        bbduk_container
+    shell:
+        'cat {params.fq_list} '
+        '| '
+        'filterbyname.sh '
+        'in=stdin.fastq '
+        'names={input.names} '
+        'include=t '
+        'out={output} '
+        '2> {log}'
+
+rule choose_reads_to_keep:
+    input:
+        'output/02_basecalled/{fc}/sequencing_summary.txt'
+    output:
+        'output/04_filtered/{fc}/reads_to_keep.txt'
+    log:
+        'output/logs/choose_reads_to_keep_{fc}.log'
+    singularity:
+        minionqc_container
+    script:
+        'src/choose_reads_to_keep.R'
 
 # run minion qc on output
 rule minionqc:
@@ -179,7 +231,7 @@ rule basecall:
 # test aggregate untar
 rule aggregate:
     input:
-        aggregate_untar
+        'output/01_untar/{fc}/{tar_file}'
     output:
         'output/01_untar/flags/{fc}_{tar_file}.untarred'
     wildcard_constraints:
@@ -188,7 +240,7 @@ rule aggregate:
         'touch {output}'
 
 # generic untar rule
-checkpoint untar:
+rule untar:
     input:
         get_untar_input
     output:
