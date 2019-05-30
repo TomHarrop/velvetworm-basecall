@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import fileinput
 import os
 import pathlib2
 import tarfile
@@ -140,25 +141,33 @@ rule join_passed_reads:
 
 rule filter_by_name:
     input:
-        'output/02_basecalled/{fc}/sequencing_summary.txt',
+        fq = 'output/04_filtered/{fc}/all_reads.fastq',
         names = 'output/04_filtered/{fc}/reads_to_keep.txt'
     output:
         temp('output/04_filtered/{fc}/kept_reads.fastq')
-    params:
-        fq_list = lambda wildcards: get_fastq_files(wildcards)
     log:
         'output/logs/filter_by_name_{fc}.log'
     singularity:
         bbduk_container
     shell:
-        'cat {params.fq_list} '
-        '| '
         'filterbyname.sh '
-        'in=stdin.fastq '
+        'in={input.fq} '
         'names={input.names} '
         'include=t '
         'out={output} '
-        '2> {log}'
+        '2> {log} '
+
+rule merge_by_flowcell:
+    input:
+        'output/02_basecalled/{fc}/sequencing_summary.txt'
+    output:
+        fq = temp('output/04_filtered/{fc}/all_reads.fastq')
+    params:
+        fq_list = lambda wildcards: get_fastq_files(wildcards)
+    run:
+        with open(output.fq, 'wt') as f:
+            for line in fileinput.input(params.fq_list):
+                f.write(line)
 
 rule choose_reads_to_keep:
     input:
