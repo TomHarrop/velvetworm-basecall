@@ -90,9 +90,9 @@ fc_list = [
     '20190217-NPL0612-P1-A11-D11']
 
 pigz_container = 'shub://TomHarrop/singularity-containers:pigz_2.4.0'
-guppy_container = 'shub://TomHarrop/singularity-containers:guppy_2.3.7'
-minionqc_container = 'shub://TomHarrop/singularity-containers:minionqc_1.4.1'
-bbduk_container = 'shub://TomHarrop/singularity-containers:bbmap_38.00'
+guppy_container = 'shub://TomHarrop/ont-containers:guppy_3.4.4'
+minionqc_container = 'shub://TomHarrop/ont-containers:minionqc_1.4.1'
+bbduk_container = 'shub://TomHarrop/singularity-containers:bbmap_38.50b'
 
 ########
 # MAIN #
