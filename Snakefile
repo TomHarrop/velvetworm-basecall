@@ -2,7 +2,7 @@
 
 import fileinput
 import os
-import pathlib2
+import pathlib
 import tarfile
 import warnings
 import multiprocessing
@@ -22,30 +22,30 @@ def aggregate_untar(wildcards):
 
 
 def find_all_by_ext(read_dir, extension):
-    my_read_path = pathlib2.Path(read_dir)
+    my_read_path = pathlib.Path(read_dir)
     my_files = []
     for dirpath, dirnames, filenames in os.walk(my_read_path):
         for fn in filenames:
             if fn.endswith(extension):
                 my_files.append(
-                    str(pathlib2.Path(dirpath, fn).resolve()))
+                    str(pathlib.Path(dirpath, fn).resolve()))
     return my_files
 
 
 def get_basecall_input(wildcards):
     if wildcards.fc in fcs_with_tar:
-        all_tarnames = [pathlib2.Path(x).stem for x in fcs_with_tar[wildcards.fc]]
+        all_tarnames = [pathlib.Path(x).stem for x in fcs_with_tar[wildcards.fc]]
         return expand('output/01_untar/flags/{{fc}}_{tar_file}.untarred',
                       tar_file=all_tarnames)
     if wildcards.fc in fcs_with_fast5:
-        return str(pathlib2.Path(read_dir, '{fc}'))
+        return str(pathlib.Path(read_dir, '{fc}'))
 
 
 def get_basecall_wd(fc):
     if fc in fcs_with_tar:
         return 'output/01_untar/{}'.format(fc)
     if fc in fcs_with_fast5:
-        return str(pathlib2.Path(read_dir, fc))
+        return str(pathlib.Path(read_dir, fc))
 
 def get_fastq_files(wildcards):
     glob_path = 'output/02_basecalled/{}/'.format(wildcards.fc)
@@ -55,7 +55,7 @@ def get_fastq_files(wildcards):
 
 def get_untar_input(wildcards):
     my_tarfile = [x for x in fcs_with_tar[wildcards.fc]
-                  if pathlib2.Path(x).stem == wildcards.tar_file]
+                  if pathlib.Path(x).stem == wildcards.tar_file]
     return(my_tarfile)
 
 
@@ -64,13 +64,13 @@ def list_fast5_in_tar(tar_file):
         warnings.warn(
             'Scanning {} for fast5, will take a while'.format(tar_file))
         my_members = my_tar.getmembers()
-    my_tarpaths = [pathlib2.Path(x.path).name for x in my_members 
+    my_tarpaths = [pathlib.Path(x.path).name for x in my_members 
                    if x.path.endswith('.fast5')]
     return(my_tarpaths)
 
 
 def match_filename_to_flowcell(filename, fc_list):
-    my_parts = pathlib2.Path(filename).parts
+    my_parts = pathlib.Path(filename).parts
     my_fc_match = [x for x in my_parts if x in fc_list][0]
     if len(my_fc_match) == 0:
         raise ValueError('No match for {}'.format(filename))
@@ -228,7 +228,7 @@ rule basecall:
         'guppy_basecaller '
         '--flowcell FLO-PRO002 '
         '--kit SQK-LSK109 '
-        '--input {params.wd} '
+        '--input_path {params.wd} '
         '--save_path {params.outdir} '
         '--recursive '
         '--device auto '
