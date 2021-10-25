@@ -96,7 +96,7 @@ bbduk_container = 'docker://ghcr.io/deardenlab/container-bbmap:bbmap_38.90'
 
 # get the host from the cli
 # snakemake config host=host.address:port
-host = config['host']
+# host = config['host']
 
 ########
 # MAIN #
@@ -127,9 +127,8 @@ fcs_with_tar = {k: v for k, v in flowcell_to_tar.items() if len(v) > 0}
 
 rule target:
     input:
-        expand('output/02_basecalled/{fc}/sequencing_summary_{worker}.txt',
-               fc=fc_list,
-               worker=[0, 1, 2, 3, 4]),
+        expand('output/02_basecalled/{fc}/sequencing_summary.txt',
+               fc=fc_list),
         'output/03_minionqc/combinedQC/summary.yaml',
         'output/04_filtered/all_passed_reads.fastq'
 
@@ -164,8 +163,7 @@ rule filter_by_name:
 
 rule merge_by_flowcell:
     input:
-        expand('output/02_basecalled/{{fc}}/sequencing_summary_{worker}.txt',
-               worker=[0, 1, 2, 3, 4])
+        'output/02_basecalled/{fc}/sequencing_summary.txt'
     output:
         fq = temp('output/04_filtered/{fc}/all_reads.fastq')
     params:
@@ -177,8 +175,7 @@ rule merge_by_flowcell:
 
 rule choose_reads_to_keep:
     input:
-        expand('output/02_basecalled/{{fc}}/sequencing_summary_{worker}.txt',
-               worker=[0, 1, 2, 3, 4])
+        'output/02_basecalled/{fc}/sequencing_summary.txt'
     output:
         'output/04_filtered/{fc}/reads_to_keep.txt'
     log:
@@ -191,9 +188,8 @@ rule choose_reads_to_keep:
 # run minion qc on output
 rule minionqc:
     input:
-        expand('output/02_basecalled/{fc}/sequencing_summary_{worker}.txt',
-               fc=fc_list,
-               worker=[0, 1, 2, 3, 4])
+        expand('output/02_basecalled/{fc}/sequencing_summary.txt',
+               fc=fc_list)
     output:
         'output/03_minionqc/combinedQC/summary.yaml'
     params:
@@ -220,8 +216,7 @@ rule basecall:
     input:
         get_basecall_input
     output:
-        expand('output/02_basecalled/{{fc}}/sequencing_summary_{worker}.txt',
-               worker=[0, 1, 2, 3, 4])
+        'output/02_basecalled/{fc}/sequencing_summary.txt'
     params:
         wd = lambda wildcards: get_basecall_wd(wildcards.fc),
         outdir = 'output/02_basecalled/{fc}',
@@ -235,9 +230,8 @@ rule basecall:
     singularity:
         guppy_container
     shell:
-        'guppy_basecaller_supervisor '
-        '--port {host} '
-        '--num_clients 5 '
+        'guppy_basecaller '
+        '--device auto '
         '--input_path {params.wd} '
         '--save_path {params.outdir} '
         '--recursive '
