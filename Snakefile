@@ -90,9 +90,13 @@ fc_list = [
     '20190217-NPL0612-P1-A11-D11']
 
 pigz_container = 'shub://TomHarrop/singularity-containers:pigz_2.4.0'
-guppy_container = 'shub://TomHarrop/ont-containers:guppy_3.4.4'
+guppy_container = 'docker://ghcr.io/tomharrop/container-guppy:5.0.16'
 minionqc_container = 'shub://TomHarrop/ont-containers:minionqc_1.4.1'
-bbduk_container = 'shub://TomHarrop/singularity-containers:bbmap_38.50b'
+bbduk_container = 'docker://ghcr.io/deardenlab/container-bbmap:bbmap_38.90'
+
+# get the host from the cli
+# snakemake config host=host.address:port
+host = config['host']
 
 ########
 # MAIN #
@@ -123,8 +127,9 @@ fcs_with_tar = {k: v for k, v in flowcell_to_tar.items() if len(v) > 0}
 
 rule target:
     input:
-        expand('output/02_basecalled/{fc}/sequencing_summary.txt',
-               fc=fc_list),
+        expand('output/02_basecalled/{fc}/sequencing_summary_{worker}.txt',
+               fc=fc_list,
+               worker=[0, 1, 2, 3, 4]),
         'output/03_minionqc/combinedQC/summary.yaml',
         'output/04_filtered/all_passed_reads.fastq'
 
@@ -159,7 +164,8 @@ rule filter_by_name:
 
 rule merge_by_flowcell:
     input:
-        'output/02_basecalled/{fc}/sequencing_summary.txt'
+        expand('output/02_basecalled/{{fc}}/sequencing_summary_{worker}.txt',
+               worker=[0, 1, 2, 3, 4])
     output:
         fq = temp('output/04_filtered/{fc}/all_reads.fastq')
     params:
@@ -171,7 +177,8 @@ rule merge_by_flowcell:
 
 rule choose_reads_to_keep:
     input:
-        'output/02_basecalled/{fc}/sequencing_summary.txt'
+        expand('output/02_basecalled/{{fc}}/sequencing_summary_{worker}.txt',
+               worker=[0, 1, 2, 3, 4])
     output:
         'output/04_filtered/{fc}/reads_to_keep.txt'
     log:
@@ -184,8 +191,9 @@ rule choose_reads_to_keep:
 # run minion qc on output
 rule minionqc:
     input:
-        expand('output/02_basecalled/{fc}/sequencing_summary.txt',
-               fc=fc_list)
+        expand('output/02_basecalled/{fc}/sequencing_summary_{worker}.txt',
+               fc=fc_list,
+               worker=[0, 1, 2, 3, 4])
     output:
         'output/03_minionqc/combinedQC/summary.yaml'
     params:
@@ -212,10 +220,12 @@ rule basecall:
     input:
         get_basecall_input
     output:
-        'output/02_basecalled/{fc}/sequencing_summary.txt'
+        expand('output/02_basecalled/{{fc}}/sequencing_summary_{worker}.txt',
+               worker=[0, 1, 2, 3, 4])
     params:
         wd = lambda wildcards: get_basecall_wd(wildcards.fc),
-        outdir = 'output/02_basecalled/{fc}'
+        outdir = 'output/02_basecalled/{fc}',
+        ont_config = '/opt/ont/guppy/data/dna_r9.4.1_450bps_sup_prom.cfg'
     log:
         'output/logs/{fc}_guppy.log'
     resources:
@@ -225,15 +235,13 @@ rule basecall:
     singularity:
         guppy_container
     shell:
-        'guppy_basecaller '
-        '--flowcell FLO-PRO002 '
-        '--kit SQK-LSK109 '
+        'guppy_basecaller_supervisor '
+        '--port {host} '
+        '--num_clients 5 '
         '--input_path {params.wd} '
         '--save_path {params.outdir} '
         '--recursive '
-        '--device auto '
-        '--num_callers 16 '
-        '--chunks_per_runner 96 '
+        '--config {params.ont_config} '
         '&> {log}'
 
 
